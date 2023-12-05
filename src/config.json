@@ -1,6 +1,6 @@
 {
-  "name": "HifiGan+Hope",
-  "n_gpu": 1,
+  "name": "RawNet2+Hope",
+  "n_gpu": 0,
   "preprocessing": {
       "spectrogram": {
           "args": {
@@ -18,22 +18,8 @@
       "log_spec": false
   },
   "arch": {
-      "type": "HifiGan",
-      "args": {
-        "model_config": {
-            "generator": {
-                "upsample_rates": [8,8,2,2],
-                "upsample_kernel_sizes": [16,16,4,4],
-                "resblock_kernel_sizes": [3,7,11],
-                "resblock_dilation_sizes": [[1,3,5], [1,3,5], [1,3,5]],
-                "initial_channels": 512,
-                "n_mels": 80,
-                "pre_kernel_size": 7,
-                "post_kernel_size": 7,
-                "neg_slope": 0.1
-            }
-        }
-      }
+      "type": "RawNet2",
+      "args": {}
   },
   "data": {
       "train": {
@@ -41,10 +27,10 @@
           "num_workers": 5,
           "datasets": [
               {
-                  "type": "LJspeechDataset",
+                  "type": "ASVDataset",
                   "args": {
                       "part": "train",
-                      "segment_size": 16384
+                      "segment_size": 64000
                   }
               }
           ]
@@ -54,10 +40,23 @@
           "num_workers": 5,
           "datasets": [
             {
-                "type": "LJspeechDataset",
+                "type": "ASVDataset",
                 "args": {
-                    "part": "test",
-                    "limit": 50
+                    "part": "dev",
+                    "segment_size": 64000
+                }
+            }
+          ]
+      },
+      "test": {
+          "batch_size": 1,
+          "num_workers": 5,
+          "datasets": [
+            {
+                "type": "ASVDataset",
+                "args": {
+                    "part": "eval",
+                    "segment_size": 64000
                 }
             }
           ]
@@ -115,7 +114,7 @@
       "monitor": "off",
       "early_stop": 50,
       "visualize": "wandb",
-      "wandb_project": "nv_project",
+      "wandb_project": "as_project",
       "len_epoch": 500
   }
 }

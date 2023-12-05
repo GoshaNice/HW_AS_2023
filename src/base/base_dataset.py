@@ -45,11 +45,9 @@ class BaseDataset(Dataset):
         if self.segment_size is not None and audio_wave.shape[-1] > self.segment_size:
             start = np.random.randint(0, audio_wave.shape[-1] - self.segment_size + 1)
             audio_wave = audio_wave[:, start : start + self.segment_size]
-        audio_wave, audio_spec = self.process_wave(audio_wave)
         return {
             "audio": audio_wave,
-            "spectrogram": audio_spec,
-            "duration": audio_wave.size(1) / self.config_melspec.sr,
+            "audio_type": 1 if data_dict["audio_type"] == "bonafide" else 0
         }
 
     @staticmethod

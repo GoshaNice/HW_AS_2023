@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 URL_LINKS = {"dataset": "https://datashare.ed.ac.uk/bitstream/handle/10283/3336/LA.zip"}
 
 
-class LJspeechDataset(BaseDataset):
+class ASVDataset(BaseDataset):
     def __init__(self, part, data_dir=None, *args, **kwargs):
         if data_dir is None:
             data_dir = ROOT_PATH / "data" / "datasets" / "asv"
@@ -30,23 +30,25 @@ class LJspeechDataset(BaseDataset):
 
     def _load_dataset(self):
         arch_path = self._data_dir / "LA.zip"
-        download_file(URL_LINKS["dataset"], arch_path)
+        #download_file(URL_LINKS["dataset"], arch_path)
         shutil.unpack_archive(arch_path, self._data_dir)
-        for fpath in tqdm((self._data_dir / "LA").iterdir()):
-            shutil.move(str(fpath), str(self._data_dir / fpath.name))
-        os.remove(str(arch_path))
-        shutil.rmtree(str(self._data_dir / "LA"))
 
-        files = [file_name for file_name in (self._data_dir / "wavs").iterdir()]
-        train_length = int(0.9 * len(files))  # hand split, test ~ 10
         (self._data_dir / "train").mkdir(exist_ok=True, parents=True)
-        (self._data_dir / "test").mkdir(exist_ok=True, parents=True)
-        for i, fpath in tqdm(enumerate((self._data_dir / "wavs").iterdir())):
-            if i < train_length:
-                shutil.copy(str(fpath), str(self._data_dir / "train" / fpath.name))
-            else:
-                shutil.copy(str(fpath), str(self._data_dir / "test" / fpath.name))
-        # shutil.rmtree(str(self._data_dir / "wavs"))
+        (self._data_dir / "dev").mkdir(exist_ok=True, parents=True)
+        (self._data_dir / "eval").mkdir(exist_ok=True, parents=True)
+
+        for i, fpath in tqdm(enumerate((self._data_dir / "LA" / "ASVspoof2019_LA_train" / "flac").iterdir())):
+            shutil.copy(str(fpath), str(self._data_dir / "train" / fpath.name))
+        
+        for i, fpath in tqdm(enumerate((self._data_dir / "LA" / "ASVspoof2019_LA_dev" / "flac").iterdir())):
+            shutil.copy(str(fpath), str(self._data_dir / "dev" / fpath.name))
+            
+        for i, fpath in tqdm(enumerate((self._data_dir / "LA" / "ASVspoof2019_LA_eval" / "flac").iterdir())):
+            shutil.copy(str(fpath), str(self._data_dir / "eval" / fpath.name))
+        
+        shutil.copy(str(self._data_dir / "LA" / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.train.trn.txt"), str(self._data_dir / "meta_train.txt"))
+        shutil.copy(str(self._data_dir / "LA" / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.eval.trl.txt"), str(self._data_dir / "meta_eval.txt"))
+        shutil.copy(str(self._data_dir / "LA" / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.dev.trl.txt"), str(self._data_dir / "meta_dev.txt"))
 
     def _get_or_load_index(self, part):
         index_path = self._data_dir / f"{part}_index.json"
@@ -65,25 +67,23 @@ class LJspeechDataset(BaseDataset):
         if not split_dir.exists():
             self._load_dataset()
 
-        wav_dirs = set()
-        for dirpath, dirnames, filenames in os.walk(str(split_dir)):
-            if any([f.endswith(".wav") for f in filenames]):
-                wav_dirs.add(dirpath)
-        for wav_dir in tqdm(list(wav_dirs), desc=f"Preparing ljspeech folders: {part}"):
-            wav_dir = Path(wav_dir)
-            trans_path = list(self._data_dir.glob("*.csv"))[0]
-            with trans_path.open() as f:
-                for line in f:
-                    w_id = line.split("|")[0]
-                    wav_path = wav_dir / f"{w_id}.wav"
-                    if not wav_path.exists():  # elem in another part
-                        continue
-                    t_info = torchaudio.info(str(wav_path))
-                    length = t_info.num_frames / t_info.sample_rate
-                    index.append(
-                        {
-                            "path": str(wav_path.absolute().resolve()),
-                            "audio_len": length,
-                        }
-                    )
+        meta_file = self._data_dir / f"meta_{part}.txt"
+        with open(str(meta_file), "r") as f:
+            data = f.readlines()
+        for i in tqdm(range(len(data))):
+            row = data[i].strip().split()
+            name = row[1]
+            audio_type = row[-1]
+            wav_path = split_dir / f"{name}.flac"
+            t_info = torchaudio.info(str(wav_path))
+            length = t_info.num_frames / t_info.sample_rate
+
+            index.append(
+                {
+                    "path": str(wav_path),
+                    "audio_type": audio_type,
+                    "audio_len": length,
+                }
+            )
+        
         return index

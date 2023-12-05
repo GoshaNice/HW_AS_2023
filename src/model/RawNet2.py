@@ -44,9 +44,7 @@ class RawNet2(nn.Module):
             nn.LeakyReLU()
         )
         
-        self.resblocks = nn.Sequential(
-            ResBlock(),
-            ResBlock(),
-        )
+    def forward(self, x):
+        return x
         
         
