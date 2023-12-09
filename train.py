@@ -43,30 +43,22 @@ def main(config):
     
     metrics= []
 
-    generator_loss = config.init_obj(config["generator_loss"], module_loss).to(device)
-    discriminator_loss = config.init_obj(config["discriminator_loss"], module_loss).to(device)
+    loss = config.init_obj(config["loss"], module_loss).to(device)
+        
+    params = model.parameters()
+    optimizer = config.init_obj(config["optimizer"], torch.optim, params)
+     
+    lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
     
-    generator_params = model.generator.parameters()
-    discriminator_params = model.discriminator.parameters()
-    
-    generator_optimizer = config.init_obj(config["generator_optimizer"], torch.optim, generator_params)
-    discriminator_optimizer = config.init_obj(config["discriminator_optimizer"], torch.optim, discriminator_params)
-    
-    generator_lr_scheduler = config.init_obj(config["generator_lr_scheduler"], torch.optim.lr_scheduler, generator_optimizer)
-    discriminator_lr_scheduler = config.init_obj(config["discriminator_lr_scheduler"], torch.optim.lr_scheduler, discriminator_optimizer)
-
     trainer = Trainer(
         model,
-        generator_loss,
-        discriminator_loss,
+        loss,
         metrics,
-        generator_optimizer,
-        discriminator_optimizer,
+        optimizer,
         config=config,
         device=device,
         dataloaders=dataloaders,
-        generator_lr_scheduler=generator_lr_scheduler,
-        discriminator_lr_scheduler=discriminator_lr_scheduler,
+        lr_scheduler=lr_scheduler,
         len_epoch=config["trainer"].get("len_epoch", None)
     )
 

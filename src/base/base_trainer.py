@@ -15,11 +15,9 @@ class BaseTrainer:
     def __init__(
         self,
         model: BaseModel,
-        generator_criterion,
-        discriminator_criterion,
+        criterion,
         metrics,
-        generator_optimizer,
-        discriminator_optimizer,
+        optimizer,
         config,
         device,
     ):
@@ -28,11 +26,9 @@ class BaseTrainer:
         self.logger = config.get_logger("trainer", config["trainer"]["verbosity"])
 
         self.model = model
-        self.generator_criterion = generator_criterion
-        self.discriminator_criterion = discriminator_criterion
+        self.criterion = criterion
         self.metrics = metrics
-        self.generator_optimizer = generator_optimizer
-        self.discriminator_optimizer = discriminator_optimizer
+        self.optimizer = optimizer
 
         # for interrupt saving
         self._last_epoch = 0
@@ -151,8 +147,7 @@ class BaseTrainer:
             "arch": arch,
             "epoch": epoch,
             "state_dict": self.model.state_dict(),
-            "generator_optimizer": self.generator_optimizer.state_dict(),
-            "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
             "monitor_best": self.mnt_best,
             "config": self.config,
         }
@@ -187,10 +182,8 @@ class BaseTrainer:
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
         if (
-            checkpoint["config"]["generator_optimizer"]
-            != self.config["generator_optimizer"]
-            or checkpoint["config"]["discriminator_optimizer"]
-            != self.config["discriminator_optimizer"]
+            checkpoint["config"]["optimizer"]
+            != self.config["optimizer"]
             or checkpoint["config"]["lr_scheduler"] != self.config["lr_scheduler"]
         ):
             self.logger.warning(
@@ -198,10 +191,7 @@ class BaseTrainer:
                 "from that of checkpoint. Optimizer parameters not being resumed."
             )
         else:
-            self.generator_optimizer.load_state_dict(checkpoint["generator_optimizer"])
-            self.discriminator_optimizer.load_state_dict(
-                checkpoint["discriminator_optimizer"]
-            )
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
 
         self.logger.info(
             "Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch)

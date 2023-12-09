@@ -28,26 +28,21 @@ class Trainer(BaseTrainer):
     def __init__(
         self,
         model,
-        generator_criterion,
-        discriminator_criterion,
+        criterion,
         metrics,
-        generator_optimizer,
-        discriminator_optimizer,
+        optimizer,
         config,
         device,
         dataloaders,
-        generator_lr_scheduler=None,
-        discriminator_lr_scheduler=None,
+        lr_scheduler=None,
         len_epoch=None,
         skip_oom=True,
     ):
         super().__init__(
             model,
-            generator_criterion,
-            discriminator_criterion,
+            criterion,
             metrics,
-            generator_optimizer,
-            discriminator_optimizer,
+            optimizer,
             config,
             device,
         )
@@ -64,21 +59,15 @@ class Trainer(BaseTrainer):
         self.evaluation_dataloaders = {
             k: v for k, v in dataloaders.items() if k != "train"
         }
-        self.generator_lr_scheduler = generator_lr_scheduler
-        self.discriminator_lr_scheduler = discriminator_lr_scheduler
+        self.lr_scheduler = lr_scheduler
         self.log_step = 50
 
         test_melspec = np.load("test_data_folder/mel_1.npy")
         self.test_melspec = torch.from_numpy(test_melspec).to(device)
 
         self.train_metrics = MetricTracker(
-            "discriminator_loss",
-            "generator_loss",
-            "adversarial_loss",
-            "mel_loss",
-            "fm_loss",
-            "generator grad norm",
-            "discriminator grad norm",
+            "loss",
+            "grad norm",
             *[m.name for m in self.metrics],
             writer=self.writer,
         )
@@ -91,7 +80,7 @@ class Trainer(BaseTrainer):
         """
         Move all necessary tensors to the HPU
         """
-        for tensor_for_gpu in ["spectrogram", "audio"]:
+        for tensor_for_gpu in ["target", "audio"]:
             batch[tensor_for_gpu] = batch[tensor_for_gpu].to(device)
         return batch
 
@@ -131,31 +120,22 @@ class Trainer(BaseTrainer):
                 else:
                     raise e
             self.train_metrics.update(
-                "generator grad norm", self.get_grad_norm_generator()
+                "grad norm", self.get_grad_norm()
             )
-            self.train_metrics.update(
-                "discriminator grad norm", self.get_grad_norm_discriminator()
-            )
+
             if batch_idx % self.log_step == 0:
                 self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
                 self.logger.debug(
-                    "Train Epoch: {} {} Generator Loss: {:.6f}, Discriminator Loss: {:.6f}".format(
+                    "Train Epoch: {} {} Loss: {:.6f}".format(
                         epoch,
                         self._progress(batch_idx),
-                        batch["generator_loss"].item(),
-                        batch["discriminator_loss"].item(),
+                        batch["loss"].item(),
                     )
                 )
                 self.writer.add_scalar(
-                    "generator learning rate",
-                    self.generator_lr_scheduler.get_last_lr()[0],
+                    "learning rate",
+                    self.lr_scheduler.get_last_lr()[0],
                 )
-                self.writer.add_scalar(
-                    "discriminator learning rate",
-                    self.discriminator_lr_scheduler.get_last_lr()[0],
-                )
-                self._log_spectrogram(batch["spectrogram"])
-                self._log_audio(batch["prediction"])
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
                 # because we are interested in recent train metrics
@@ -164,10 +144,8 @@ class Trainer(BaseTrainer):
             if batch_idx >= self.len_epoch:
                 break
         log = last_train_metrics
-        if self.generator_lr_scheduler is not None:
-            self.generator_lr_scheduler.step()
-        if self.discriminator_lr_scheduler is not None:
-            self.discriminator_lr_scheduler.step()
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
 
         for part, dataloader in self.evaluation_dataloaders.items():
             val_log = self._evaluation_epoch(epoch, part, dataloader)
@@ -177,41 +155,22 @@ class Trainer(BaseTrainer):
 
     def process_batch(self, batch, is_train: bool, metrics: MetricTracker):
         batch = self.move_batch_to_device(batch, self.device)
+        if is_train:
+            self.optimizer.zero_grad()
+        
         outputs = self.model(**batch)
         batch.update(outputs)
-
-        outputs = self.model.discriminate(
-            prediction=batch["prediction"].detach(), audio=batch["audio"]
-        )
-        batch.update(outputs)
-
+        batch["loss"] = self.criterion(**batch)
         if is_train:
-            self.discriminator_optimizer.zero_grad()
-            discriminator_loss = self.discriminator_criterion(**batch)
-            discriminator_loss.backward()
-            self.discriminator_optimizer.step()
-
-            self.generator_optimizer.zero_grad()
-            outputs = self.model.discriminate(**batch)
-            batch.update(outputs)
-            (
-                generator_loss,
-                adversarial_loss,
-                mel_loss,
-                fm_loss,
-            ) = self.generator_criterion(**batch)
-            generator_loss.backward()
-            self.generator_optimizer.step()
-            batch["generator_loss"] = generator_loss
-            batch["discriminator_loss"] = discriminator_loss
-
-            metrics.update("generator_loss", generator_loss.item())
-            metrics.update("discriminator_loss", discriminator_loss.item())
-            metrics.update("adversarial_loss", adversarial_loss.item())
-            metrics.update("mel_loss", mel_loss.item())
-            metrics.update("fm_loss", fm_loss.item())
-            for met in self.metrics:
-                metrics.update(met.name, met(**batch))
+            batch["loss"].backward()
+            self._clip_grad_norm()
+            self.optimizer.step()
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
+            
+        metrics.update("loss", batch["loss"].item())
+        for met in self.metrics:
+            metrics.update(met.name, met(**batch))
 
         return batch
 
@@ -272,22 +231,8 @@ class Trainer(BaseTrainer):
         self.writer.add_audio("test_audio", audio, sample_rate=22050)
 
     @torch.no_grad()
-    def get_grad_norm_generator(self, norm_type=2):
-        parameters = self.model.generator.parameters()
-        if isinstance(parameters, torch.Tensor):
-            parameters = [parameters]
-        parameters = [p for p in parameters if p.grad is not None]
-        total_norm = torch.norm(
-            torch.stack(
-                [torch.norm(p.grad.detach(), norm_type).cpu() for p in parameters]
-            ),
-            norm_type,
-        )
-        return total_norm.item()
-
-    @torch.no_grad()
-    def get_grad_norm_discriminator(self, norm_type=2):
-        parameters = self.model.discriminator.parameters()
+    def get_grad_norm(self, norm_type=2):
+        parameters = self.model.parameters()
         if isinstance(parameters, torch.Tensor):
             parameters = [parameters]
         parameters = [p for p in parameters if p.grad is not None]

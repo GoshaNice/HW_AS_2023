@@ -24,12 +24,7 @@ class BaseDataset(Dataset):
         max_audio_length=None,
     ):
         self.config_parser = config_parser
-        self.log_spec = config_parser["preprocessing"]["log_spec"]
-        self.config_melspec = MelSpectrogramConfig(
-            **config_parser["preprocessing"]["spectrogram"]["args"]
-        )
-        self.wav2spec = MelSpectrogram(self.config_melspec)
-
+        self.preprocessing = config_parser["preprocessing"]
         self._assert_index_is_valid(index)
         index = self._filter_records_from_dataset(index, max_audio_length, limit)
         self.segment_size = segment_size
@@ -60,7 +55,7 @@ class BaseDataset(Dataset):
     def load_audio(self, path):
         audio_tensor, sr = torchaudio.load(path)
         audio_tensor = audio_tensor[0:1, :]  # remove all channels but the first
-        target_sr = self.config_melspec.sr
+        target_sr = self.preprocessing["sr"]
         if sr != target_sr:
             audio_tensor = torchaudio.functional.resample(audio_tensor, sr, target_sr)
         return audio_tensor
