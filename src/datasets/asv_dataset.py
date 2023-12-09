@@ -30,7 +30,7 @@ class ASVDataset(BaseDataset):
 
     def _load_dataset(self):
         arch_path = self._data_dir / "LA.zip"
-        #download_file(URL_LINKS["dataset"], arch_path)
+        download_file(URL_LINKS["dataset"], arch_path)
         shutil.unpack_archive(arch_path, self._data_dir)
 
         (self._data_dir / "train").mkdir(exist_ok=True, parents=True)

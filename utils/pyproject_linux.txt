@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "as-project-hw3"
+name = "as-project-hw5"
 version = "0.1.0"
 description = "AS Project HW3"
 authors = ["Gosha <gkpistsov@edu.hse.ru>"]

@@ -15,6 +15,7 @@ import torchaudio
 from src.base import BaseTrainer
 from src.logger.utils import plot_spectrogram_to_buf
 from src.utils import inf_loop, MetricTracker
+from src.metric.compute_eer import compute_eer
 
 import numpy as np
 import time
@@ -60,18 +61,19 @@ class Trainer(BaseTrainer):
             k: v for k, v in dataloaders.items() if k != "train"
         }
         self.lr_scheduler = lr_scheduler
-        self.log_step = 50
-
-        test_melspec = np.load("test_data_folder/mel_1.npy")
-        self.test_melspec = torch.from_numpy(test_melspec).to(device)
-
+        self.log_step = 200
+        evaluation_period = self.config["trainer"].get("evaluation_period", None)
+        self.evaluation_period = 1 if evaluation_period is None else evaluation_period
         self.train_metrics = MetricTracker(
             "loss",
             "grad norm",
+            "EER",
             *[m.name for m in self.metrics],
             writer=self.writer,
         )
         self.evaluation_metrics = MetricTracker(
+            "loss",
+            "EER",
             *[m.name for m in self.metrics], writer=self.writer
         )
 
@@ -100,6 +102,8 @@ class Trainer(BaseTrainer):
         self.model.train()
         self.train_metrics.reset()
         self.writer.add_scalar("epoch", epoch)
+        predictions = None
+        targets = None
         for batch_idx, batch in enumerate(
             tqdm(self.train_dataloader, desc="train", total=self.len_epoch)
         ):
@@ -109,6 +113,17 @@ class Trainer(BaseTrainer):
                     is_train=True,
                     metrics=self.train_metrics,
                 )
+                batch_predictions = batch['prediction'].detach().cpu().numpy()
+                batch_targets = batch['target'].detach().cpu().numpy()
+                if predictions is None:
+                    predictions = batch_predictions
+                else:
+                    predictions = np.concatenate([predictions, batch_predictions])
+                if targets is None:
+                    targets = batch_targets
+                else:
+                    targets = np.concatenate([targets, batch_targets])
+
             except RuntimeError as e:
                 if "out of memory" in str(e) and self.skip_oom:
                     self.logger.warning("OOM on batch. Skipping batch.")
@@ -132,10 +147,11 @@ class Trainer(BaseTrainer):
                         batch["loss"].item(),
                     )
                 )
-                self.writer.add_scalar(
-                    "learning rate",
-                    self.lr_scheduler.get_last_lr()[0],
-                )
+                if self.lr_scheduler is not None:
+                    self.writer.add_scalar(
+                        "learning rate",
+                        self.lr_scheduler.get_last_lr()[0],
+                    )
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
                 # because we are interested in recent train metrics
@@ -143,13 +159,20 @@ class Trainer(BaseTrainer):
                 self.train_metrics.reset()
             if batch_idx >= self.len_epoch:
                 break
+
+        bonafide_scores = predictions[targets==1][:,1]
+        other_scores = predictions[targets==0][:,1]
+        eer, _ = compute_eer(bonafide_scores, other_scores)
+        self.train_metrics.update("EER", eer)
+
         log = last_train_metrics
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
-
-        for part, dataloader in self.evaluation_dataloaders.items():
-            val_log = self._evaluation_epoch(epoch, part, dataloader)
-            log.update(**{f"{part}_{name}": value for name, value in val_log.items()})
+        
+        if epoch % self.evaluation_period == 0:
+            for part, dataloader in self.evaluation_dataloaders.items():
+                val_log = self._evaluation_epoch(epoch, part, dataloader)
+                log.update(**{f"{part}_{name}": value for name, value in val_log.items()})
 
         return log
 
@@ -184,6 +207,8 @@ class Trainer(BaseTrainer):
         self.model.eval()
         self.evaluation_metrics.reset()
         with torch.no_grad():
+            predictions = None
+            targets = None
             for batch_idx, batch in tqdm(
                 enumerate(dataloader),
                 desc=part,
@@ -194,11 +219,23 @@ class Trainer(BaseTrainer):
                     is_train=False,
                     metrics=self.evaluation_metrics,
                 )
+                batch_predictions = batch['prediction'].detach().cpu().numpy()
+                batch_targets = batch['target'].detach().cpu().numpy()
+                if predictions is None:
+                    predictions = batch_predictions
+                else:
+                    predictions = np.concatenate([predictions, batch_predictions])
+                if targets is None:
+                    targets = batch_targets
+                else:
+                    targets = np.concatenate([targets, batch_targets])
+
+            bonafide_scores = predictions[targets==1][:,1]
+            other_scores = predictions[targets==0][:,1]
+            eer, _ = compute_eer(bonafide_scores, other_scores)
+            self.evaluation_metrics.update("EER", eer)
             self.writer.set_step(epoch * self.len_epoch, part)
             self._log_scalars(self.evaluation_metrics)
-            self._log_spectrogram(batch["spectrogram"])
-            self._log_audio(batch["prediction"])
-            self._log_test_audio()
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():
@@ -215,20 +252,6 @@ class Trainer(BaseTrainer):
             total = self.len_epoch
         return base.format(current, total, 100.0 * current / total)
 
-    def _log_spectrogram(self, spectrogram_batch):
-        spectrogram = random.choice(spectrogram_batch.cpu())
-        image = PIL.Image.open(plot_spectrogram_to_buf(spectrogram))
-        self.writer.add_image("spectrogram", ToTensor()(image))
-
-    def _log_audio(self, audio_batch):
-        audio = random.choice(audio_batch.cpu().detach())
-        self.writer.add_audio("audio", audio, sample_rate=22050)
-
-    def _log_test_audio(self):
-        self.model.eval()
-        output = self.model(self.test_melspec)
-        audio = output["prediction"][0].cpu().detach()
-        self.writer.add_audio("test_audio", audio, sample_rate=22050)
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):

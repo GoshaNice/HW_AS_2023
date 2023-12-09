@@ -11,6 +11,7 @@ import torch
 
 import src.loss as module_loss
 import src.model as module_arch
+import src.metric as module_metric
 from src.trainer import Trainer
 from src.utils import prepare_device
 from src.utils.object_loading import get_dataloaders
@@ -41,14 +42,18 @@ def main(config):
     if len(device_ids) > 1:
         model = torch.nn.DataParallel(model, device_ids=device_ids)
     
-    metrics= []
+    metrics= [
+        config.init_obj(metric_dict, module_metric)
+        for metric_dict in config["metrics"]
+    ]
 
     loss = config.init_obj(config["loss"], module_loss).to(device)
         
     params = model.parameters()
     optimizer = config.init_obj(config["optimizer"], torch.optim, params)
-     
-    lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
+    lr_scheduler = None
+    if config["lr_scheduler"].get("type", None) is not None:
+        lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
     
     trainer = Trainer(
         model,

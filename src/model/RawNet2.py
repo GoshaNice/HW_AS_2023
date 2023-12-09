@@ -21,72 +21,90 @@ class FMS(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels:int, out_channels:int):
+    def __init__(self, in_channels: int, out_channels: int):
         super(ResBlock, self).__init__()
-        self.blocks = nn.Sequential(
+        self.block1 = nn.Sequential(
             nn.BatchNorm1d(num_features=in_channels),
             nn.LeakyReLU(),
             nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding="same"),
             nn.BatchNorm1d(num_features=out_channels),
             nn.LeakyReLU(),
             nn.Conv1d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding="same"),
+        )
+
+        if in_channels != out_channels:
+            self.resample = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, padding="same")
+
+        self.block2 = nn.Sequential(
             nn.MaxPool1d(kernel_size=3),
-            FMS(filter_length=out_channels)  
+            FMS(filter_length=out_channels)
         )
     def forward(self, x):
-        return self.blocks(x)
+        out = self.block1(x)
+        if out.shape[1] != x.shape[1]:
+            x = self.resample(x)
+        out = out + x
+        out = self.block2(out)
+        return out
 
 
 
 class RawNet2(nn.Module):
-    def __init__(self):
+    def __init__(self, 
+                 sinc_filter_length: int = 1024,
+                 resblock1_channels: int = 20,
+                 resblock2_channels: int = 128,
+                 gru_hidden: int = 1024,
+                 gru_num_layers: int = 3,
+                 use_abs: bool = True):
         super(RawNet2, self).__init__()
-        self.sinc_filters = SincConv_fast(in_channels=1, out_channels=128, kernel_size=129)
+        self.sinc_filters = SincConv_fast(in_channels=1, 
+                                          out_channels=128, 
+                                          kernel_size=sinc_filter_length)
+        self.use_abs = use_abs
         self.maxpool = nn.MaxPool1d(3)
         
         self.resblocks1 = nn.Sequential(
-            ResBlock(in_channels=128, out_channels=128),
-            ResBlock(in_channels=128, out_channels=128),
+            ResBlock(in_channels=128, out_channels=resblock1_channels),
+            ResBlock(in_channels=resblock1_channels, out_channels=resblock1_channels),
         )
         
         self.resblocks2 = nn.Sequential(
-            ResBlock(in_channels=128, out_channels=512),
-            ResBlock(in_channels=512, out_channels=512),
-            ResBlock(in_channels=512, out_channels=512),
-            ResBlock(in_channels=512, out_channels=512)
+            ResBlock(in_channels=resblock1_channels, out_channels=resblock2_channels),
+            ResBlock(in_channels=resblock2_channels, out_channels=resblock2_channels),
+            ResBlock(in_channels=resblock2_channels, out_channels=resblock2_channels),
+            ResBlock(in_channels=resblock2_channels, out_channels=resblock2_channels)
         )
         
         self.pre_gru = nn.Sequential(
-            nn.BatchNorm1d(num_features=512),
+            nn.BatchNorm1d(num_features=resblock2_channels),
             nn.LeakyReLU(),
         )
         
-        self.gru = nn.GRU(input_size=512, hidden_size=1024, num_layers=3, batch_first=True)
+        self.gru = nn.GRU(input_size=resblock2_channels, 
+                          hidden_size=gru_hidden, 
+                          num_layers=gru_num_layers, 
+                          batch_first=True)
         self.fc = nn.Sequential(
-            nn.Linear(in_features=1024, out_features=1024),
+            nn.Linear(in_features=gru_hidden, out_features=gru_hidden),
             nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=2)
+            nn.Linear(in_features=gru_hidden, out_features=2)
         )
+
         
     def forward(self, audio, **batch):
         x = audio.unsqueeze(1) #(B, 1, 64000)
-        print("Input:", x.shape)
-        x = self.sinc_filters(x) #(B, 128, L)
-        x = torch.abs(x)
-        x = self.maxpool(x) #(B, 128, 21290)
-        print("After sinc:", x.shape)
-        x = self.resblocks1(x) #(B, 128, 2365)
-        print("After resblock1:", x.shape)
-        x = self.resblocks2(x) #(B, 512, 29)
-        print("After resblock2:", x.shape)
-        x = self.pre_gru(x) #(B, 512, 29)
-        print("After pre_gru:", x.shape)
+        x = self.sinc_filters(x) #(B, 1024, L)
+        if self.use_abs:
+            x = torch.abs(x)
+        x = self.maxpool(x) #(B, 1024, 21290)
+        x = self.resblocks1(x) #(B, 20, 2365)
+        x = self.resblocks2(x) #(B, 128, 29)
+        x = self.pre_gru(x) #(B, 128, 29)
         x = x.transpose(-2, -1)
         x, _ = self.gru(x) #(B, 29, 1024)
         x = x[:, -1, :] #(B, 1024)
-        print("After gru:", x.shape)
         x = self.fc(x) #(B, 2)
-        print("After fc:", x.shape)
         
         return {"prediction": x}
         
