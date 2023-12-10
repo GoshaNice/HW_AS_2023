@@ -39,19 +39,18 @@ class BaseDataset(Dataset):
         audio_path = data_dict["path"]
         audio_wave = self.load_audio(audio_path)
         if audio_wave.shape[-1] > self.segment_size:
-            start = np.random.randint(0, audio_wave.shape[-1] - self.segment_size + 1)
-            audio_wave = audio_wave[:, start : start + self.segment_size]
+            # start = np.random.randint(0, audio_wave.shape[-1] - self.segment_size + 1)
+            # audio_wave = audio_wave[:, start : start + self.segment_size]
+            audio_wave = audio_wave[:, : self.segment_size]
         elif audio_wave.shape[-1] < self.segment_size:
             while audio_wave.shape[-1] != self.segment_size:
-                padding_value = min(self.segment_size - audio_wave.shape[-1], audio_wave.shape[-1])
-                audio_wave = F.pad(
-                    audio_wave,
-                    (0, padding_value),
-                    mode="circular"
+                padding_value = min(
+                    self.segment_size - audio_wave.shape[-1], audio_wave.shape[-1]
                 )
+                audio_wave = F.pad(audio_wave, (0, padding_value), mode="circular")
         return {
             "audio": audio_wave,
-            "audio_type": 1 if data_dict["audio_type"] == "bonafide" else 0
+            "audio_type": 1 if data_dict["audio_type"] == "bonafide" else 0,
         }
 
     @staticmethod

@@ -37,18 +37,54 @@ class ASVDataset(BaseDataset):
         (self._data_dir / "dev").mkdir(exist_ok=True, parents=True)
         (self._data_dir / "eval").mkdir(exist_ok=True, parents=True)
 
-        for i, fpath in tqdm(enumerate((self._data_dir / "LA" / "ASVspoof2019_LA_train" / "flac").iterdir())):
+        for i, fpath in tqdm(
+            enumerate(
+                (self._data_dir / "LA" / "ASVspoof2019_LA_train" / "flac").iterdir()
+            )
+        ):
             shutil.copy(str(fpath), str(self._data_dir / "train" / fpath.name))
-        
-        for i, fpath in tqdm(enumerate((self._data_dir / "LA" / "ASVspoof2019_LA_dev" / "flac").iterdir())):
+
+        for i, fpath in tqdm(
+            enumerate(
+                (self._data_dir / "LA" / "ASVspoof2019_LA_dev" / "flac").iterdir()
+            )
+        ):
             shutil.copy(str(fpath), str(self._data_dir / "dev" / fpath.name))
-            
-        for i, fpath in tqdm(enumerate((self._data_dir / "LA" / "ASVspoof2019_LA_eval" / "flac").iterdir())):
+
+        for i, fpath in tqdm(
+            enumerate(
+                (self._data_dir / "LA" / "ASVspoof2019_LA_eval" / "flac").iterdir()
+            )
+        ):
             shutil.copy(str(fpath), str(self._data_dir / "eval" / fpath.name))
-        
-        shutil.copy(str(self._data_dir / "LA" / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.train.trn.txt"), str(self._data_dir / "meta_train.txt"))
-        shutil.copy(str(self._data_dir / "LA" / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.eval.trl.txt"), str(self._data_dir / "meta_eval.txt"))
-        shutil.copy(str(self._data_dir / "LA" / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.dev.trl.txt"), str(self._data_dir / "meta_dev.txt"))
+
+        shutil.copy(
+            str(
+                self._data_dir
+                / "LA"
+                / "ASVspoof2019_LA_cm_protocols"
+                / "ASVspoof2019.LA.cm.train.trn.txt"
+            ),
+            str(self._data_dir / "meta_train.txt"),
+        )
+        shutil.copy(
+            str(
+                self._data_dir
+                / "LA"
+                / "ASVspoof2019_LA_cm_protocols"
+                / "ASVspoof2019.LA.cm.eval.trl.txt"
+            ),
+            str(self._data_dir / "meta_eval.txt"),
+        )
+        shutil.copy(
+            str(
+                self._data_dir
+                / "LA"
+                / "ASVspoof2019_LA_cm_protocols"
+                / "ASVspoof2019.LA.cm.dev.trl.txt"
+            ),
+            str(self._data_dir / "meta_dev.txt"),
+        )
 
     def _get_or_load_index(self, part):
         index_path = self._data_dir / f"{part}_index.json"
@@ -85,5 +121,5 @@ class ASVDataset(BaseDataset):
                     "audio_len": length,
                 }
             )
-        
+
         return index

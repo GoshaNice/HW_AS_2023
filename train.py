@@ -49,8 +49,8 @@ def main(config):
 
     loss = config.init_obj(config["loss"], module_loss).to(device)
         
-    params = model.parameters()
-    optimizer = config.init_obj(config["optimizer"], torch.optim, params)
+    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = config.init_obj(config["optimizer"], torch.optim, trainable_params)
     lr_scheduler = None
     if config["lr_scheduler"].get("type", None) is not None:
         lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)

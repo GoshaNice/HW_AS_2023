@@ -72,9 +72,7 @@ class Trainer(BaseTrainer):
             writer=self.writer,
         )
         self.evaluation_metrics = MetricTracker(
-            "loss",
-            "EER",
-            *[m.name for m in self.metrics], writer=self.writer
+            "loss", "EER", *[m.name for m in self.metrics], writer=self.writer
         )
 
     @staticmethod
@@ -113,8 +111,8 @@ class Trainer(BaseTrainer):
                     is_train=True,
                     metrics=self.train_metrics,
                 )
-                batch_predictions = batch['prediction'].detach().cpu().numpy()
-                batch_targets = batch['target'].detach().cpu().numpy()
+                batch_predictions = batch["prediction"].detach().cpu().numpy()
+                batch_targets = batch["target"].detach().cpu().numpy()
                 if predictions is None:
                     predictions = batch_predictions
                 else:
@@ -134,9 +132,7 @@ class Trainer(BaseTrainer):
                     continue
                 else:
                     raise e
-            self.train_metrics.update(
-                "grad norm", self.get_grad_norm()
-            )
+            self.train_metrics.update("grad norm", self.get_grad_norm())
 
             if batch_idx % self.log_step == 0:
                 self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
@@ -160,19 +156,21 @@ class Trainer(BaseTrainer):
             if batch_idx >= self.len_epoch:
                 break
 
-        bonafide_scores = predictions[targets==1][:,1]
-        other_scores = predictions[targets==0][:,1]
+        bonafide_scores = predictions[targets == 1][:, 1]
+        other_scores = predictions[targets == 0][:, 1]
         eer, _ = compute_eer(bonafide_scores, other_scores)
         self.train_metrics.update("EER", eer)
 
         log = last_train_metrics
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
-        
+
         if epoch % self.evaluation_period == 0:
             for part, dataloader in self.evaluation_dataloaders.items():
                 val_log = self._evaluation_epoch(epoch, part, dataloader)
-                log.update(**{f"{part}_{name}": value for name, value in val_log.items()})
+                log.update(
+                    **{f"{part}_{name}": value for name, value in val_log.items()}
+                )
 
         return log
 
@@ -180,7 +178,7 @@ class Trainer(BaseTrainer):
         batch = self.move_batch_to_device(batch, self.device)
         if is_train:
             self.optimizer.zero_grad()
-        
+
         outputs = self.model(**batch)
         batch.update(outputs)
         batch["loss"] = self.criterion(**batch)
@@ -190,7 +188,7 @@ class Trainer(BaseTrainer):
             self.optimizer.step()
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
-            
+
         metrics.update("loss", batch["loss"].item())
         for met in self.metrics:
             metrics.update(met.name, met(**batch))
@@ -219,8 +217,8 @@ class Trainer(BaseTrainer):
                     is_train=False,
                     metrics=self.evaluation_metrics,
                 )
-                batch_predictions = batch['prediction'].detach().cpu().numpy()
-                batch_targets = batch['target'].detach().cpu().numpy()
+                batch_predictions = batch["prediction"].detach().cpu().numpy()
+                batch_targets = batch["target"].detach().cpu().numpy()
                 if predictions is None:
                     predictions = batch_predictions
                 else:
@@ -230,8 +228,8 @@ class Trainer(BaseTrainer):
                 else:
                     targets = np.concatenate([targets, batch_targets])
 
-            bonafide_scores = predictions[targets==1][:,1]
-            other_scores = predictions[targets==0][:,1]
+            bonafide_scores = predictions[targets == 1][:, 1]
+            other_scores = predictions[targets == 0][:, 1]
             eer, _ = compute_eer(bonafide_scores, other_scores)
             self.evaluation_metrics.update("EER", eer)
             self.writer.set_step(epoch * self.len_epoch, part)
@@ -251,7 +249,6 @@ class Trainer(BaseTrainer):
             current = batch_idx
             total = self.len_epoch
         return base.format(current, total, 100.0 * current / total)
-
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):
