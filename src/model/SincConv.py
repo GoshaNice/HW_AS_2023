@@ -48,6 +48,7 @@ class SincConv_fast(nn.Module):
         groups=1,
         min_low_hz=0,
         min_band_hz=0,
+        s3 = False,
     ):
         super(SincConv_fast, self).__init__()
 
@@ -81,10 +82,17 @@ class SincConv_fast(nn.Module):
         # initialize filterbanks such that they are equally spaced in Mel scale
         low_hz = 30
         high_hz = self.sample_rate / 2 - (self.min_low_hz + self.min_band_hz)
+        
+        if not s3:
+            mel = np.linspace(
+                self.to_mel(low_hz), self.to_mel(high_hz), self.out_channels + 1
+            )
+        else:
+            inverse_mel = np.linspace(
+                1 / self.to_mel(high_hz), 1 / self.to_mel(low_hz), self.out_channels + 1
+            )
+            mel = np.flip(1 / inverse_mel)
 
-        mel = np.linspace(
-            self.to_mel(low_hz), self.to_mel(high_hz), self.out_channels + 1
-        )
         hz = self.to_hz(mel)
 
         # filter lower frequency (out_channels, 1)

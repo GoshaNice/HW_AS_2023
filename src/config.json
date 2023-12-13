@@ -1,5 +1,5 @@
 {
-  "name": "RawNet2+Hope",
+  "name": "RawNet2+S3+Hope+Ablation",
   "n_gpu": 1,
   "preprocessing": {
       "sr": 16000
@@ -9,15 +9,16 @@
       "args": {
         "sinc_filter_length": 1024,
         "sinc_channels": 20,
-        "min_low_hz": 0,
-        "min_band_hz": 0,
+        "min_low_hz": 50,
+        "min_band_hz": 50,
         "resblock1_channels": 20,
         "resblock2_channels": 128,
         "gru_hidden": 1024,
         "gru_num_layers": 3,
         "fc_hidden": 1024,
         "neg_slope": 0.3,
-        "use_abs": true
+        "use_abs": false,
+        "s3": true
       }
   },
   "data": {

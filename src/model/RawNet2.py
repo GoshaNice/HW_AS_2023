@@ -78,6 +78,7 @@ class RawNet2(nn.Module):
         fc_hidden: int = 1024,
         neg_slope: float = 0.3,
         use_abs: bool = True,
+        s3: bool = False,
     ):
         super(RawNet2, self).__init__()
         self.sinc_filters = SincConv_fast(
@@ -86,6 +87,7 @@ class RawNet2(nn.Module):
             kernel_size=sinc_filter_length,
             min_low_hz=min_low_hz,
             min_band_hz=min_band_hz,
+            s3 = s3,
         )
         self.use_abs = use_abs
         self.maxpool = nn.MaxPool1d(3)
