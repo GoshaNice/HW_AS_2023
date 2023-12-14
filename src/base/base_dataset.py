@@ -8,8 +8,6 @@ import torchaudio
 from torch import Tensor
 import torch.nn.functional as F
 from torch.utils.data import Dataset
-from src.preprocessing.melspectrogram import MelSpectrogram, MelSpectrogramConfig
-
 from src.utils.parse_config import ConfigParser
 
 logger = logging.getLogger(__name__)
