@@ -15,4 +15,4 @@ class CustomDirAudioDataset(CustomAudioDataset):
                 entry["path"] = str(path)
             if len(entry) > 0:
                 data.append(entry)
-        super().__init__(data, segment_size *args, **kwargs)
+        super().__init__(data, segment_size * args, **kwargs)

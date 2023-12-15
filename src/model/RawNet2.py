@@ -87,7 +87,7 @@ class RawNet2(nn.Module):
             kernel_size=sinc_filter_length,
             min_low_hz=min_low_hz,
             min_band_hz=min_band_hz,
-            s3 = s3,
+            s3=s3,
         )
         self.use_abs = use_abs
         self.maxpool = nn.MaxPool1d(3)

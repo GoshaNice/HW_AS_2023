@@ -12,12 +12,14 @@ from src.utils import ROOT_PATH
 from src.utils.object_loading import get_dataloaders
 from src.utils.parse_config import ConfigParser
 from src.metric.compute_eer import compute_eer
+import torchaudio
+import torch.nn.functional as F
 import numpy as np
 
 DEFAULT_CHECKPOINT_PATH = ROOT_PATH / "default_test_model" / "checkpoint.pth"
 
 
-def main(config, out_file):
+def main(config, input_dir):
     logger = config.get_logger("test")
 
     # define cpu or gpu if possible
@@ -42,30 +44,29 @@ def main(config, out_file):
     model = model.to(device)
     model.eval()
     
-    predictions = None
-    targets = None
-    with torch.no_grad():
-        for batch_num, batch in enumerate(tqdm(dataloaders["eval"])):
-            batch = Trainer.move_batch_to_device(batch, device)
-            output = model(**batch)
-            batch.update(output)
-
-            batch_predictions = batch["prediction"].detach().cpu().numpy()
-            batch_targets = batch["target"].detach().cpu().numpy()
-            
-            if predictions is None:
-                predictions = batch_predictions
-            else:
-                predictions = np.concatenate([predictions, batch_predictions])
-            if targets is None:
-                targets = batch_targets
-            else:
-                targets = np.concatenate([targets, batch_targets])
-  
-    bonafide_scores = predictions[targets == 1][:, 1]
-    other_scores = predictions[targets == 0][:, 1]
-    eer, _ = compute_eer(bonafide_scores, other_scores)
-    print(f"Eval EER: {eer}")
+    for path in sorted(Path(input_dir).iterdir()):
+        entry = {}
+        if path.suffix not in [".mp3", ".wav", ".flac", ".m4a"]:
+            continue
+        
+        audio_wave, sr = torchaudio.load(path)
+        if sr != 16000:
+            audio_wave = torchaudio.functional.resample(audio_wave, sr, 16000)
+        if audio_wave.shape[-1] > 64000:
+            audio_wave = audio_wave[:, : 64000]
+        elif audio_wave.shape[-1] < 64000:
+            while audio_wave.shape[-1] != 64000:
+                padding_value = min(
+                    64000 - audio_wave.shape[-1], audio_wave.shape[-1]
+                )
+                audio_wave = F.pad(audio_wave, (0, padding_value), mode="circular")
+        
+        with torch.no_grad():
+            audio_wave = audio_wave.to(device)
+            output = model(audio = audio_wave)
+            prediction = output["prediction"]
+        
+        print(f"For audio {path} probability bonafied is {prediction[0][1]}")
 
 
 if __name__ == "__main__":
@@ -101,16 +102,9 @@ if __name__ == "__main__":
     args.add_argument(
         "-t",
         "--test-data-folder",
-        default=None,
+        default="test_data_folder",
         type=str,
         help="Path to dataset",
-    )
-    args.add_argument(
-        "-b",
-        "--batch-size",
-        default=1,
-        type=int,
-        help="Test dataset batch size",
     )
     args.add_argument(
         "-j",
@@ -137,27 +131,5 @@ if __name__ == "__main__":
         with Path(args.config).open() as f:
             config.config.update(json.load(f))
 
-    # if `--test-data-folder` was provided, set it as a default test set
-    if args.test_data_folder is not None:
-        test_data_folder = Path(args.test_data_folder).absolute().resolve()
-        assert test_data_folder.exists()
-        config.config["data"] = {
-            "eval": {
-                "batch_size": args.batch_size,
-                "num_workers": args.jobs,
-                "datasets": [
-                    {
-                        "type": "CustomDirAudioDataset",
-                        "args": {
-                            "audio_dir": str(test_data_folder),
-                        }
-                    }
-                ],
-            }
-        }
 
-    assert config.config.get("data", {}).get("eval", None) is not None
-    config["data"]["eval"]["batch_size"] = args.batch_size
-    config["data"]["eval"]["n_jobs"] = args.jobs
-
-    main(config, args.output)
+    main(config, args.test_data_folder)

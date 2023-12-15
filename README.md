@@ -1,7 +1,7 @@
 # AS HW5
 #### Implemented by: Pistsov Georgiy 202
 
-You can find report here: [wandb report](https://wandb.ai/goshanice/nv_project/reports/-DLA-AS-Homework--Vmlldzo2MTUxNDI3)
+You can find report here: [wandb report](wow.ru)
 
 ## Installation guide
 
@@ -18,12 +18,12 @@ Then you run:
 make install
 ```
 
-## Download checkpoint:
+## Download checkpoints:
 
 ```shell
-make download_checkpoint
+make download_checkpoints
 ```
-The file "model_best.pth" will be in default_test_model/
+Both checkpoint for s1 and s3 sinc filters will be in default_test_model/s1/ and default_test_model/s3/ respectively
 
 ## Train model:
 
@@ -33,16 +33,21 @@ make train
 Config for training you can find in src/config.json
 
 
-## Synthesize something:
+## Test something:
 
-The melspectrograms to synthesize should be in "test_data_folder/"
+The audios to test should be in "test_data_folder/"
+
+To test on model with s1:
 
 ```shell
-make synthesize
+make test_s1
 ```
 
-The results will be in "results/"
+To test on model with s3:
 
+```shell
+make test_s3
+```
 
 ## Run any other python script:
 
@@ -61,10 +66,18 @@ You can use:
 poetry run python train.py -r default_test_model/model_best.pth
 ```
 
-## How to train my model
+## How to train my models
+
+For s1: 
 
 ```shell
-poetry run python train.py -c src/config.json
+poetry run python train.py -c src/configs/config_s1.json
+```
+
+For s3: 
+
+```shell
+poetry run python train.py -c src/configs/config_s3.json
 ```
 
 ## Credits

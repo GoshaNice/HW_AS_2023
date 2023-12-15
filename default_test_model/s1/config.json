@@ -1,0 +1,78 @@
+{
+    "name": "Test+S1",
+    "n_gpu": 1,
+    "preprocessing": {
+        "sr": 16000
+    },
+    "arch": {
+        "type": "RawNet2",
+        "args": {
+            "sinc_filter_length": 1024,
+            "sinc_channels": 20,
+            "min_low_hz": 50,
+            "min_band_hz": 50,
+            "resblock1_channels": 20,
+            "resblock2_channels": 128,
+            "gru_hidden": 1024,
+            "gru_num_layers": 3,
+            "fc_hidden": 1024,
+            "neg_slope": 0.3,
+            "use_abs": false
+        }
+    },
+    "data": {
+        "train": {
+            "batch_size": 32,
+            "num_workers": 5,
+            "datasets": [
+                {
+                    "type": "ASVDataset",
+                    "args": {
+                        "part": "train",
+                        "segment_size": 64000
+                    }
+                }
+            ]
+        },
+        "dev": {
+            "batch_size": 32,
+            "num_workers": 5,
+            "datasets": [
+                {
+                    "type": "ASVDataset",
+                    "args": {
+                        "part": "dev",
+                        "segment_size": 64000
+                    }
+                }
+            ]
+        }
+    },
+    "optimizer": {
+        "type": "Adam",
+        "args": {
+            "lr": 0.0001,
+            "weight_decay": 0.0001
+        }
+    },
+    "loss": {
+        "type": "RawNetLoss",
+        "args": {
+            "bonafide_weight": 9.0,
+            "spoof_weight": 1.0
+        }
+    },
+    "metrics": [],
+    "lr_scheduler": {},
+    "trainer": {
+        "epochs": 100,
+        "save_dir": "saved/",
+        "save_period": 10,
+        "evaluation_period": 2,
+        "verbosity": 2,
+        "monitor": "off",
+        "early_stop": 100,
+        "visualize": "wandb",
+        "wandb_project": "as_project"
+    }
+}
