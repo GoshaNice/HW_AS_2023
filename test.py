@@ -108,7 +108,7 @@ if __name__ == "__main__":
     args.add_argument(
         "-b",
         "--batch-size",
-        default=32,
+        default=1,
         type=int,
         help="Test dataset batch size",
     )
@@ -142,18 +142,15 @@ if __name__ == "__main__":
         test_data_folder = Path(args.test_data_folder).absolute().resolve()
         assert test_data_folder.exists()
         config.config["data"] = {
-            "test": {
+            "eval": {
                 "batch_size": args.batch_size,
                 "num_workers": args.jobs,
                 "datasets": [
                     {
                         "type": "CustomDirAudioDataset",
                         "args": {
-                            "audio_dir": str(test_data_folder / "audio"),
-                            "transcription_dir": str(
-                                test_data_folder / "transcriptions"
-                            ),
-                        },
+                            "audio_dir": str(test_data_folder),
+                        }
                     }
                 ],
             }
