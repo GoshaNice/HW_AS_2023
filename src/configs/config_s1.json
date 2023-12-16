@@ -1,5 +1,5 @@
 {
-    "name": "TrainingS1",
+    "name": "TrainingS1original",
     "n_gpu": 1,
     "preprocessing": {
         "sr": 16000
@@ -78,7 +78,7 @@
     "metrics": [],
     "lr_scheduler": {},
     "trainer": {
-        "epochs": 100,
+        "epochs": 90,
         "save_dir": "saved/",
         "save_period": 10,
         "evaluation_period": 2,

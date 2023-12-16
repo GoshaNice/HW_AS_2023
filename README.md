@@ -1,7 +1,9 @@
 # AS HW5
 #### Implemented by: Pistsov Georgiy 202
 
-You can find report here: [wandb report](wow.ru)
+You can find report here: [wandb report](https://wandb.ai/goshanice/as_project/reports/-DLA-Anti-spoofing-Homework--Vmlldzo2Mjc2NDQw)
+
+__!Attention!__: After finishing all the experiments I found out, that I mixed up s2 and s3. In this repo I have implemented s1(fixed Mel-scaled) and s2(fixed inverse Mel-scaled) types of sinc filters, but in code I refer s2 as s3.
 
 ## Installation guide
 
@@ -23,7 +25,7 @@ make install
 ```shell
 make download_checkpoints
 ```
-Both checkpoint for s1 and s3 sinc filters will be in default_test_model/s1/ and default_test_model/s3/ respectively
+Both checkpoint for s1 and s2 sinc filters will be in default_test_model/s1/ and default_test_model/s2/ respectively
 
 ## Train model:
 
@@ -43,10 +45,10 @@ To test on model with s1:
 make test_s1
 ```
 
-To test on model with s3:
+To test on model with s2:
 
 ```shell
-make test_s3
+make test_s2
 ```
 
 ## Run any other python script:
@@ -74,10 +76,10 @@ For s1:
 poetry run python train.py -c src/configs/config_s1.json
 ```
 
-For s3: 
+For s2: 
 
 ```shell
-poetry run python train.py -c src/configs/config_s3.json
+poetry run python train.py -c src/configs/config_s2.json
 ```
 
 ## Credits
